@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>WindFarm Investment Planner — Project Finance Decision Tool</title>
+<meta name="description" content="Interactive offshore wind farm investment planner: valuation, debt sizing, 25-year cash flow, sensitivity, covenant and stress testing. Built on the three-pillar project-finance framework." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="brand-mark">WF</span>
+      <div>
+        <h1>WindFarm Investment Planner</h1>
+        <p class="tagline">Valuation · Financing · Risk — live project finance model</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <div id="liveDot" class="live-dot" title="Live dashboard"><span class="pulse"></span>Live</div>
+      <button id="btnPreset" class="btn btn-ghost">Formosa Blue baseline</button>
+      <button id="btnReset" class="btn btn-ghost">Reset</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <aside class="sidebar">
+    <section class="card">
+      <h2 class="card-title">Inputs</h2>
+      <p class="card-note">Blue-rule convention: everything downstream recomputes instantly from this panel.</p>
+
+      <div class="field-group">
+        <h3>Project</h3>
+        <label>Installed capacity <span>(MW)</span>
+          <input type="number" id="inpCapacity" value="600" step="50" min="1" />
+        </label>
+        <label>Capacity factor — P50 <span>(share)</span>
+          <input type="number" id="inpCfP50" value="0.45" step="0.01" min="0" max="1" />
+        </label>
+        <label>Capacity factor — P90 <span>(share)</span>
+          <input type="number" id="inpCfP90" value="0.40" step="0.01" min="0" max="1" />
+        </label>
+        <label>Electricity price <span>(USD/MWh)</span>
+          <input type="number" id="inpPrice" value="100" step="1" min="1" />
+        </label>
+      </div>
+
+      <div class="field-group">
+        <h3>Cost</h3>
+        <label>CAPEX <span>(USD m)</span>
+          <input type="number" id="inpCapex" value="2400" step="50" min="1" />
+        </label>
+        <label>OPEX <span>(USD m / yr)</span>
+          <input type="number" id="inpOpex" value="48" step="1" min="0" />
+        </label>
+      </div>
+
+      <div class="field-group">
+        <h3>Timing</h3>
+        <label>Project life <span>(years)</span>
+          <input type="number" id="inpLife" value="25" step="1" min="1" max="40" />
+        </label>
+        <label>Debt tenor <span>(years)</span>
+          <input type="number" id="inpTenor" value="18" step="1" min="1" />
+        </label>
+      </div>
+
+      <div class="field-group">
+        <h3>Finance</h3>
+        <label>Cost of debt — Rd <span>(share)</span>
+          <input type="number" id="inpRd" value="0.05" step="0.005" min="0" max="1" />
+        </label>
+        <label>Cost of equity — Re <span>(share)</span>
+          <input type="number" id="inpRe" value="0.12" step="0.005" min="0" max="1" />
+        </label>
+        <label>Tax rate <span>(share)</span>
+          <input type="number" id="inpTax" value="0.20" step="0.01" min="0" max="1" />
+        </label>
+        <label>Minimum DSCR <span>(x)</span>
+          <input type="number" id="inpMinDscr" value="1.40" step="0.05" min="1" />
+        </label>
+        <label>Max gearing <span>(share)</span>
+          <input type="number" id="inpGearing" value="0.70" step="0.05" min="0" max="1" />
+        </label>
+      </div>
+    </section>
+  </aside>
+
+  <main class="main">
+
+    <section class="verdict card" id="verdictCard">
+      <div class="verdict-left">
+        <p class="eyebrow">Investment verdict</p>
+        <h2 id="verdictTitle">—</h2>
+        <p id="verdictReason" class="verdict-reason">—</p>
+      </div>
+      <div class="verdict-right">
+        <div class="verdict-badge" id="verdictBadge">—</div>
+      </div>
+    </section>
+
+    <section class="kpis" id="kpiRow">
+      <div class="kpi card"><p class="kpi-label">NPV</p><p class="kpi-value" id="kpiNpv">—</p><p class="kpi-sub" id="kpiNpvSub">—</p></div>
+      <div class="kpi card"><p class="kpi-label">Project IRR</p><p class="kpi-value" id="kpiIrr">—</p><p class="kpi-sub" id="kpiIrrSub">vs WACC</p></div>
+      <div class="kpi card"><p class="kpi-label">WACC</p><p class="kpi-value" id="kpiWacc">—</p><p class="kpi-sub">Discount rate</p></div>
+      <div class="kpi card"><p class="kpi-label">LCOE</p><p class="kpi-value" id="kpiLcoe">—</p><p class="kpi-sub" id="kpiLcoeSub">vs price</p></div>
+      <div class="kpi card"><p class="kpi-label">Debt size</p><p class="kpi-value" id="kpiDebt">—</p><p class="kpi-sub" id="kpiDebtSub">Equity</p></div>
+      <div class="kpi card"><p class="kpi-label">DSCR @ P90</p><p class="kpi-value" id="kpiDscrP90">—</p><p class="kpi-sub" id="kpiDscrSub">lock-up 1.20 · default 1.05</p></div>
+      <div class="kpi card"><p class="kpi-label">Equity IRR</p><p class="kpi-value" id="kpiEquityIrr">—</p><p class="kpi-sub" id="kpiEquityIrrSub">vs 12%</p></div>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">1 · Valuation</h2>
+      <div class="kv-grid" id="valuationGrid"></div>
+      <div class="chart-row">
+        <div class="chart-box">
+          <h4>Cumulative equity cash flow</h4>
+          <svg id="chartCum" viewBox="0 0 640 220" preserveAspectRatio="none"></svg>
+          <p class="chart-note">Crossing the axis = equity recovered. IRR anchor of the project.</p>
+        </div>
+        <div class="chart-box">
+          <h4>DSCR term structure</h4>
+          <svg id="chartDscr" viewBox="0 0 640 220" preserveAspectRatio="none"></svg>
+          <p class="chart-note">Debt service years within tenor; covenant lines at 1.20 / 1.05.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">2 · Debt Sizing</h2>
+      <div class="duo">
+        <div class="kv-grid grid-half" id="debtGrid"></div>
+        <div class="binding-panel">
+          <p class="eyebrow">Binding constraint</p>
+          <p class="binding-answer" id="bindingAnswer">—</p>
+          <p class="binding-note" id="bindingNote">—</p>
+          <div class="constraint-bars">
+            <div class="bar-row"><span class="bar-label">DSCR-supported debt</span><div class="bar-track"><div class="bar-fill" id="barDscr" style="width:0%"></div></div><span class="bar-val" id="valDscr">—</span></div>
+            <div class="bar-row"><span class="bar-label">Gearing cap</span><div class="bar-track"><div class="bar-fill" id="barGear" style="width:0%"></div></div><span class="bar-val" id="valGear">—</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">3 · 25-Year Cash Flow</h2>
+      <p class="card-note">Equity IRR is recomputed on these cash flows, not formula parts.</p>
+      <div class="table-scroll">
+        <table class="data-table" id="cashTable">
+          <thead>
+            <tr>
+              <th>Year</th><th>Generation (MWh)</th><th>Revenue ($m)</th><th>OPEX ($m)</th><th>CFADS ($m)</th>
+              <th>Debt service ($m)</th><th>DSCR</th><th>Equity CF ($m)</th><th>Cum. equity CF ($m)</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="btn-row">
+        <button id="btnCsv" class="btn btn-ghost">Export 25-yr table as CSV</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">4 · Sensitivity — NPV ($m) vs Price × CAPEX</h2>
+      <p class="card-note">Green = NPV ≥ 0 (bankable zone). Along a row or column you read the required price / cost correction.</p>
+      <div class="sens-wrap">
+        <div class="sens-axis" id="sensAxis"></div>
+        <div class="sens-area">
+          <p class="sens-top">CAPEX (USD m) →</p>
+          <div class="sens-grid inset" id="sensGrid"></div>
+        </div>
+      </div>
+      <div class="breakeven-band">
+        <p class="eyebrow">Breakeven levers (each alone makes NPV = 0)</p>
+        <div class="kv-grid three" id="breakevenGrid"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">5 · Risk &amp; Covenant Check</h2>
+
+      <div class="duo">
+        <div class="risk-panel">
+          <h4>DSCR covenant headroom</h4>
+          <div id="covenantList"></div>
+        </div>
+        <div class="risk-panel">
+          <h4>Asymmetry check — is income &amp; cost on the same side?</h4>
+          <div class="toggle-row"><label class="toggle"><input type="checkbox" id="tglIncome" checked /><span class="toggle-ui"></span>Income locked (CfD / PPA)</label></div>
+          <div class="toggle-row"><label class="toggle"><input type="checkbox" id="tglIndex" /><span class="toggle-ui"></span>Cost indexed (steel / copper clauses)</label></div>
+          <div class="toggle-row"><label class="toggle"><input type="checkbox" id="tglVessel" /><span class="toggle-ui"></span>Vessel + day-rate locked early</label></div>
+          <div class="toggle-row"><label class="toggle"><input type="checkbox" id="tglOm" /><span class="toggle-ui"></span>O&amp;M tenure matches project life</label></div>
+          <p id="asymVerdict" class="asym-verdict">—</p>
+        </div>
+      </div>
+
+      <div class="stress-grid">
+        <div class="risk-panel">
+          <h4>Stress — CAPEX +25%</h4>
+          <p id="stCapex" class="stress-out">—</p>
+          <p class="card-note">The Formosa/森崴 script: banks won't re-lever, so cost overruns land fully on equity.</p>
+        </div>
+        <div class="risk-panel">
+          <h4>Stress — O&amp;M doubles from year 11</h4>
+          <p id="stOm" class="stress-out">—</p>
+          <p class="card-note">Contract-maturity time-bomb if O&amp;M was signed short. Watch for lock-up breach.</p>
+        </div>
+        <div class="risk-panel">
+          <h4>Burial-depth decision (CBRA input)</h4>
+          <div class="select-row">
+            <label>Burial depth</label>
+            <select id="selBurial">
+              <option value="1">1.0 m (baseline)</option>
+              <option value="3" selected>3.0 m</option>
+            </select>
+          </div>
+          <div class="kv-grid mini" id="burialGrid"></div>
+          <p class="card-note">Decide on bankability + covenant breach, not just NPV. A shallow fault can trip DSCR lock-up.</p>
+        </div>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <p>WindFarm Investment Planner — a standalone practice tool built on the three-pillar project-finance framework
+      (Valuation · Financing · Risk). Figures replicate a reference Formosa Blue 600 MW baseline case. For education &amp; planning only — not investment advice.</p>
+    </footer>
+
+  </main>
+</div>
+
+<script src="model.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
