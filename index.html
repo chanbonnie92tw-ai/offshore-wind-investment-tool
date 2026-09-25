@@ -13,6 +13,40 @@
 <body>
 
 <header class="topbar">
+  <div class="topbar-bg" aria-hidden="true"></div>
+  <svg class="topbar-art" viewBox="0 0 1500 320" preserveAspectRatio="xMaxYMid slice" aria-hidden="true">
+    <defs>
+      <linearGradient id="tartSun" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffd876" stop-opacity=".55"/>
+        <stop offset="1" stop-color="#ffb84d" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <circle cx="1380" cy="60" r="95" fill="url(#tartSun)"/>
+    <circle cx="1380" cy="60" r="14" fill="#ffd876" opacity=".8"/>
+    <g stroke="#8fb2ff" stroke-linecap="round">
+      <g opacity=".22">
+        <path d="M980 290 V212"/>
+        <path d="M980 212 V186 M980 212 l 24 12 M980 212 l -20 18" stroke-width="2.4"/>
+      </g>
+      <g opacity=".4">
+        <path d="M1095 290 V178"/>
+        <path d="M1095 178 V148 M1095 178 l28 15 M1095 178 l-23 21" stroke-width="2.6"/>
+        <circle cx="1095" cy="178" r="2.6" fill="#8fb2ff"/>
+      </g>
+      <g opacity=".62">
+        <path d="M1240 290 V140"/>
+        <path d="M1240 140 V106 M1240 140 l34 18 M1240 140 l-28 26" stroke-width="3"/>
+        <circle cx="1240" cy="140" r="3.2" fill="#8fb2ff"/>
+      </g>
+      <g opacity=".9">
+        <path d="M1410 290 V98"/>
+        <path d="M1410 98 V60 M1410 98 l40 21 M1410 98 l-32 30" stroke-width="3.4"/>
+        <circle cx="1410" cy="98" r="3.8" fill="#8fb2ff"/>
+      </g>
+    </g>
+    <path d="M0 292 q35 -14 70 0 t70 0 70 0 70 0 70 0 70 0 70 0 70 0 70 0 70 0 70 0 70 0 70 0 70 0 70 0 70 0 70 0" stroke="#5b86ff" stroke-width="2.4" opacity=".5" fill="none" stroke-linecap="round"/>
+    <path d="M0 306 q30 -10 60 0 t60 0 60 0 60 0 60 0 60 0 60 0 60 0 60 0 60 0 60 0 60 0 60 0 60 0" stroke="#3f6be0" stroke-width="2" opacity=".35" fill="none" stroke-linecap="round"/>
+  </svg>
   <div class="topbar-inner">
     <div class="brand">
       <span class="brand-mark" aria-hidden="true">
@@ -25,16 +59,16 @@
           <path class="bm-wave" d="M3.5 25.5q3-2.7 6 0t6 0 6 0 6 0" />
         </svg>
       </span>
-      <div>
-        <h1>WindFarm Investment Planner</h1>
-        <p class="tagline">Valuation · Financing · Risk — live project finance model</p>
-      </div>
+      <h1>WindFarm <em>Investment Planner</em></h1>
     </div>
     <div class="top-actions">
       <div id="liveDot" class="live-dot" title="Live dashboard"><span class="pulse"></span>Live</div>
       <button id="btnPreset" class="btn btn-ghost">Apply baseline</button>
       <button id="btnReset" class="btn btn-ghost">Reset</button>
     </div>
+  </div>
+  <div class="topbar-stats">
+    <div class="topbar-stats-inner" id="topStats"></div>
   </div>
 </header>
 

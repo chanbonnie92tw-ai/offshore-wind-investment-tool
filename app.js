@@ -472,6 +472,25 @@ function mustChange(m) {
   return { items: per, unresolvable };
 }
 
+function renderTopStats(m) {
+  const el = $("topStats");
+  if (!el) return;
+  const inp = m.inputs, d = m.debt;
+  const npv = m.valuation.npv;
+  el.innerHTML = [
+    { k: "Live model", v: "valuation · financing · risk", cap: true },
+    { k: "Capacity", v: inp.capacity.toLocaleString() + " MW" },
+    { k: "CF P50", v: fmt.pct(inp.cfP50, 1) },
+    { k: "Price", v: inp.price + " $/MWh" },
+    { k: "WACC", v: fmt.pct(m.wacc.value, 1) },
+    { k: "NPV", v: (npv > 0 ? "+" : "") + fmt.num(npv, 0) + "m", cls: npv >= 0 ? "pos" : "neg" },
+    { k: "DSCR @ P90", v: d.dscrP90 === null ? "—" : fmt.mult(d.dscrP90, 2) },
+    { k: "Equity IRR", v: fmt.pct(m.equityIrr, 1) },
+  ].map((s) => s.cap
+    ? `<span class="ts-caption">${s.v}</span>`
+    : `<span class="ts-item${s.cls ? " " + s.cls : ""}"><i>${s.k}</i><b>${s.v}</b></span>`).join("");
+}
+
 function renderHighlights(m) {
   const res = mustChange(m);
   const el = $("keypoints"), note = $("keypointsNote");
@@ -814,6 +833,7 @@ function render() {
   renderSensitivity(m);
   renderBreakeven(m);
   renderCompare(m, ref);
+  renderTopStats(m);
   renderHighlights(m);
   renderAdvisor(m);
   renderRisk(m);
