@@ -32,7 +32,18 @@ const SLIDERS = {
   maxGearing: { min: 0.1, max: 0.9, step: 0.05 },
 };
 
-let reference = { inputs: { ...BASELINE } };
+function loadReference() {
+  try {
+    const r = JSON.parse(localStorage.getItem("wfpr_reference_v1"));
+    if (r && r.inputs && r.inputs.capex) return { inputs: r.inputs, savedAt: r.savedAt || null };
+  } catch (e) { /* fall through */ }
+  return { inputs: { ...BASELINE }, savedAt: null };
+}
+function saveReference() {
+  try { localStorage.setItem("wfpr_reference_v1", JSON.stringify({ inputs: reference.inputs, savedAt: reference.savedAt })); }
+  catch (e) { /* private mode — keep in memory */ }
+}
+let reference = loadReference();
 function referenceRun() { return MODEL.run({ inputs: reference.inputs }); }
 
 /* Preferred/fixed inputs — the advisor will not suggest moving these. */
@@ -379,8 +390,14 @@ function renderBreakeven(m) {
 function renderCompare(m, ref) {
   const isBaseline = JSON.stringify(reference.inputs) === JSON.stringify(BASELINE);
   $("compareNote").textContent = isBaseline
-    ? "Reference = baseline study case · move the sliders and watch the deltas repaint live."
-    : "Reference = your pinned scenario · click Reset to return to the baseline.";
+    ? "Deltas below are vs the baseline study case · save your own model as baseline and compare every change against it live."
+    : "Deltas are vs your saved baseline (green = better). “Apply baseline” in the header loads it back into the sliders.";
+
+  const bl = reference.inputs;
+  $("baselineId").textContent = isBaseline
+    ? "Baseline = default study case · 600 MW · 100 USD/MWh · 45% CF · capex 2,400m"
+    : `Baseline = your saved model · ${bl.capex.toLocaleString()} $m capex · ${bl.price} USD/MWh · ${(bl.cfP50 * 100).toFixed(0)}% CF`
+      + (reference.savedAt ? ` · saved ${new Date(reference.savedAt).toLocaleString()}` : "");
 
   const money = (v) => fmt.money(v, 0);
   const dMoney = (v) => (v > 0 ? "+" : "") + fmt.num(v, 0) + "m";
@@ -885,9 +902,14 @@ function bind() {
     });
   });
   $("btnReset").addEventListener("click", () => { setInputs(BASELINE); render(); });
-  $("btnPreset").addEventListener("click", () => { setInputs(BASELINE); render(); });
-  $("btnPin").addEventListener("click", () => { reference.inputs = { ...readInputs() }; render(); });
-  $("btnRefReset").addEventListener("click", () => { reference.inputs = { ...BASELINE }; render(); });
+  $("btnPreset").addEventListener("click", () => { setInputs(reference.inputs); render(); });
+  $("btnPin").addEventListener("click", () => {
+    reference.inputs = { ...readInputs() };
+    reference.savedAt = Date.now();
+    saveReference();
+    render();
+  });
+  $("btnRefReset").addEventListener("click", () => { reference.inputs = { ...BASELINE }; reference.savedAt = null; saveReference(); render(); });
   $("btnCsv").addEventListener("click", () => {
     if (lastInputs) exportCsv(MODEL.run({ inputs: lastInputs }));
   });

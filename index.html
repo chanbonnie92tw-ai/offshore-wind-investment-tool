@@ -23,7 +23,7 @@
     </div>
     <div class="top-actions">
       <div id="liveDot" class="live-dot" title="Live dashboard"><span class="pulse"></span>Live</div>
-      <button id="btnPreset" class="btn btn-ghost">Load baseline</button>
+      <button id="btnPreset" class="btn btn-ghost">Apply baseline</button>
       <button id="btnReset" class="btn btn-ghost">Reset</button>
     </div>
   </div>
@@ -127,15 +127,16 @@
 
     <section class="card">
       <div class="card-head">
-        <h2 class="card-title">0 · Compare vs Reference</h2>
+        <h2 class="card-title">0 · Compare vs your baseline</h2>
         <div class="card-actions">
-          <button id="btnPin" class="btn">Pin current as reference</button>
-          <button id="btnRefReset" class="btn btn-plain">Reset to baseline</button>
+          <button id="btnPin" class="btn">Save current as baseline</button>
+          <button id="btnRefReset" class="btn btn-plain">Default baseline</button>
         </div>
       </div>
-      <p class="card-note" id="compareNote">Reference = baseline study case · move the sliders and watch the deltas repaint live.</p>
+      <p class="card-note" id="compareNote">Save current settings as your baseline, then compare every change against it live.</p>
+      <p class="baseline-id" id="baselineId">Baseline = default study case · 600 MW · 100 USD/MWh · 45% CF · capex 2,400m</p>
       <table class="cmp-table" id="cmpTable">
-        <thead><tr><th>Metric</th><th>Reference</th><th>Current</th><th>Δ</th></tr></thead>
+        <thead><tr><th>Metric</th><th>Baseline</th><th>Current</th><th>Δ</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
