@@ -35,17 +35,24 @@ body {
 h1, h2, h3, h4, .kpi-value, .eyebrow { font-family: "Space Grotesk", "Inter", sans-serif; }
 
 /* Top bar */
-.topbar { background: var(--navy); color: #fff; padding: 18px 0; border-bottom: 3px solid var(--accent); }
+.topbar { background: var(--navy); color: #fff; padding: 18px 0; border-bottom: 4px solid transparent; border-image: linear-gradient(90deg, var(--accent), #37c0e8) 1; }
 .topbar-inner { max-width: 1240px; margin: 0 auto; padding: 0 22px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.brand { display: flex; align-items: center; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 13px; min-width: 0; }
 .brand-mark {
-  width: 42px; height: 42px; border-radius: 9px;
-  background: linear-gradient(135deg, var(--accent), #37c0e8);
-  color: #fff; font-weight: 700; font-size: 15px; letter-spacing: .5px;
-  display: grid; place-items: center; font-family: "Space Grotesk", sans-serif;
+  width: 44px; height: 44px; border-radius: 12px; flex: none;
+  background: radial-gradient(130% 130% at 28% 18%, #5b8bff 0%, var(--accent) 48%, #0d3aa0 100%);
+  box-shadow: 0 3px 12px rgba(30, 94, 255, .45), inset 0 1px 0 rgba(255, 255, 255, .4);
+  display: grid; place-items: center;
 }
+.brand-mark svg { width: 30px; height: 30px; display: block; }
+.bm-blades { stroke: #fff; stroke-width: 1.8; stroke-linecap: round; }
+.bm-tower { stroke: #fff; stroke-width: 1.8; stroke-linecap: round; }
+.bm-hub { fill: #fff; }
+.bm-base { stroke: rgba(255, 255, 255, .8); stroke-width: 1.8; stroke-linecap: round; }
+.bm-wave { stroke: rgba(255, 255, 255, .55); stroke-width: 1.6; stroke-linecap: round; }
+.bm-sun { fill: rgba(255, 216, 118, .9); }
 .topbar h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: .2px; }
-.tagline { margin: 2px 0 0; font-size: 12px; color: #b9c6d8; }
+.tagline { margin: 2px 0 0; font-size: 12px; color: #b9c6d8; letter-spacing: .3px; }
 .top-actions { display: flex; align-items: center; gap: 12px; }
 
 .live-dot { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: #cfdcec; font-weight: 600; }
