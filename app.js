@@ -443,7 +443,7 @@ function mustChange(m) {
         const mm = MODEL.run({ inputs: { ...m.inputs, [lever]: v }, skipRisk: true });
         if (gates(mm)[fg.idx].pass) {
           const pct = (Math.abs(v - v0) / v0) * 100;
-          if (!best || pct < best.pct) best = { lever, newV: v, pct };
+          if (!best || pct < best.pct) best = { lever, v0, newV: v, pct };
           break;
         }
       }
@@ -468,14 +468,14 @@ function renderHighlights(m) {
   el.innerHTML = res.items.slice(0, 6).map((s) => `
     <div class="mc-item">
       <span class="mc-gate-tag">fixes ${s.gate.short}</span>
-      <span class="mc-move"><b>${LEVER_NAMES[s.lever]}</b> ${LEVERS[s.lever].fmt(s.newV)}</span>
+      <span class="mc-move"><b>${LEVER_NAMES[s.lever]}</b> ${LEVERS[s.lever].fmt(s.v0)} <i class="mc-arrow">→</i> ${LEVERS[s.lever].fmt(s.newV)}</span>
       <span class="mc-pct">${LEVERS[s.lever].dir > 0 ? "↗" : "↘"} ${s.pct.toFixed(1)}%</span>
     </div>`).join("");
 
   const rows = [...new Set(res.items.map((s) => s.lever))].map((k) => LEVER_NAMES[k]).join(", ");
   note.textContent = res.unresolvable.length
     ? `${res.unresolvable.join(", ")} has no single-lever fix in a believable range — see the Advisor package. Cheapest moves: ${rows || "—"}.`
-    : `Cheapest move per failing gate · ${rows} · locked 🔒 inputs never appear · full ranking in the Advisor.`;
+    : `Cheapest move per failing gate · ${rows} (value right of the → is the target) · locked 🔒 inputs never appear · full ranking in the Advisor.`;
 }
 
 /* ---------- risk ---------- */

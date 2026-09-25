@@ -257,6 +257,7 @@ input[type="number"]:focus, select:focus { outline: none; border-color: var(--ac
   margin-right: auto;
 }
 .mc-move b { color: var(--accent); font-weight: 700; }
+.mc-move .mc-arrow { color: var(--ink-3); font-style: normal; font-weight: 800; margin: 0 3px; }
 .mc-pct { font: 600 12.5px "Space Grotesk", sans-serif; color: var(--ink-3); white-space: nowrap; }
 .mc-ok {
   padding: 13px 15px; border: 1px solid #bfe6d4; background: var(--green-bg);
