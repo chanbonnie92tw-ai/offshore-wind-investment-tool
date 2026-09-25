@@ -2,7 +2,7 @@
 
 /* ------------------------------------------------------------------
    WindFarm Investment Planner — model engine
-   Pure functions only (no DOM). Mirrors the reference Formosa Blue
+   Pure functions only (no DOM). Mirrors the 600 MW reference baseline workbook:
    workbook: valuation -> debt sizing -> returns -> sensitivity -> risk.
 ------------------------------------------------------------------- */
 

@@ -3,7 +3,7 @@
 A standalone, zero-dependency web tool for modelling and stress-testing an
 offshore wind farm investment decision. Built on the three-pillar project
 finance framework — **Valuation · Financing · Risk** — and calibrated against a
-reference "Formosa Blue" 600 MW baseline case.
+600 MW reference baseline case.
 
 No build step, no server, no libraries. Open `index.html` in a browser and drag
 anything; the whole dashboard recomputes instantly.
@@ -12,12 +12,13 @@ anything; the whole dashboard recomputes instantly.
 
 | # | Module | What it answers |
 |---|--------|-----------------|
-| 0 | Compare vs reference | Live delta table vs a baseline (Formosa Blue) or a pinned scenario |
+| 0 | Compare vs reference | Live delta table vs a baseline or a pinned scenario |
 | 1 | Valuation | NPV, Project IRR, WACC, LCOE — the "three ways of saying the same thing" |
 | 2 | Debt sizing | DSCR-supported vs gearing cap → `MIN()` → which constraint is **binding** |
 | 3 | 25-yr cash flow | Annual table, DSCR term structure, cumulative equity curve, Equity IRR |
 | 4 | Sensitivity | NPV heatmap vs price × CAPEX, breakeven levers, CSV export |
 | 5 | Risk & covenant | DSCR lock-up / default headroom, asymmetric-exposure check, stress tests, burial-depth sweep |
+| 6 | Advisor | Investable-frame gate strip + smallest single-lever fixes — respects your locked inputs (🔒) |
 
 ## How it works
 
@@ -33,7 +34,7 @@ Key conventions (learned the hard way):
 
 ## Verification
 
-The model was validated against a reference workbook (Formosa Blue 600 MW baseline):
+The model was validated against a reference workbook (600 MW baseline):
 
 | Metric | Reference | This tool |
 |--------|-----------|-----------|

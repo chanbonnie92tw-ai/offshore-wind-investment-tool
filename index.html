@@ -23,7 +23,7 @@
     </div>
     <div class="top-actions">
       <div id="liveDot" class="live-dot" title="Live dashboard"><span class="pulse"></span>Live</div>
-      <button id="btnPreset" class="btn btn-ghost">Formosa Blue baseline</button>
+      <button id="btnPreset" class="btn btn-ghost">Load baseline</button>
       <button id="btnReset" class="btn btn-ghost">Reset</button>
     </div>
   </div>
@@ -105,15 +105,34 @@
       </div>
     </section>
 
+    <section class="card hl-card">
+      <div class="card-head">
+        <h2 class="card-title">Key points — what matters right now</h2>
+        <span class="chip neutral hl-chip">auto-derived · live</span>
+      </div>
+      <div class="keypoints" id="keypoints"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">Advisor · reach the investable frame</h2>
+        <span class="chip neutral hl-chip">respects your locks · numeric</span>
+      </div>
+      <p class="card-note" id="advLockNote" style="margin-bottom:0"></p>
+      <div class="adv-gates" id="advGates"></div>
+      <div class="adv-list" id="advList"></div>
+      <p class="card-note" id="advNote"></p>
+    </section>
+
     <section class="card">
       <div class="card-head">
         <h2 class="card-title">0 · Compare vs Reference</h2>
         <div class="card-actions">
           <button id="btnPin" class="btn">Pin current as reference</button>
-          <button id="btnRefReset" class="btn btn-plain">Reset to Formosa Blue</button>
+          <button id="btnRefReset" class="btn btn-plain">Reset to baseline</button>
         </div>
       </div>
-      <p class="card-note" id="compareNote">Reference = Formosa Blue baseline · move the sliders and watch the deltas repaint live.</p>
+      <p class="card-note" id="compareNote">Reference = baseline study case · move the sliders and watch the deltas repaint live.</p>
       <table class="cmp-table" id="cmpTable">
         <thead><tr><th>Metric</th><th>Reference</th><th>Current</th><th>Δ</th></tr></thead>
         <tbody></tbody>
@@ -220,7 +239,7 @@
         <div class="risk-panel">
           <h4>Stress — CAPEX +25%</h4>
           <p id="stCapex" class="stress-out">—</p>
-          <p class="card-note">The Formosa/森崴 script: banks won't re-lever, so cost overruns land fully on equity.</p>
+          <p class="card-note">The overrun script: banks won't re-lever, so cost overruns land fully on equity.</p>
         </div>
         <div class="risk-panel">
           <h4>Stress — O&amp;M doubles from year 11</h4>
@@ -244,7 +263,7 @@
 
     <footer class="foot">
       <p>WindFarm Investment Planner — a standalone practice tool built on the three-pillar project-finance framework
-      (Valuation · Financing · Risk). Figures replicate a reference Formosa Blue 600 MW baseline case. For education &amp; planning only — not investment advice.</p>
+      (Valuation · Financing · Risk). Figures replicate a 600 MW reference baseline. For education &amp; planning only — not investment advice.</p>
     </footer>
 
   </main>

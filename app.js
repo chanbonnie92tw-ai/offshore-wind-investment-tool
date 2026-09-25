@@ -35,6 +35,27 @@ const SLIDERS = {
 let reference = { inputs: { ...BASELINE } };
 function referenceRun() { return MODEL.run({ inputs: reference.inputs }); }
 
+/* Preferred/fixed inputs — the advisor will not suggest moving these. */
+const LOCKED = new Set(["life", "rd"]);   // timeline + cost of debt are the user's hard constraints
+
+const LEVERS = {
+  capacity: { name: "Installed capacity", dir: 1, fmt: (v) => v + " MW", tip: "phase size / added turbines — pure scale; lifts revenue and CFADS." },
+  cfP50: { name: "Capacity factor P50", dir: 1, fmt: (v) => fmt.pct(v, 2), tip: "mean yield — layout & turbine choice; drives NPV and returns." },
+  cfP90: { name: "Capacity factor P90", dir: 1, fmt: (v) => fmt.pct(v, 2), tip: "bankable (P90) yield — lifts debt size and DSCR headroom." },
+  price: { name: "Electricity price", dir: 1, fmt: (v) => v + " USD/MWh", tip: "PPA / CfD strike; merchant upside is only bankable once signed." },
+  capex: { name: "CAPEX", dir: -1, fmt: (v) => fmt.money(v, 0), tip: "renegotiate EPC & balance of plant; de-scope where still bankable." },
+  opex: { name: "OPEX", dir: -1, fmt: (v) => fmt.money(v, 1) + " /yr", tip: "O&M / MSA renegotiation, indexation caps, spares pooling." },
+  life: { name: "Project life", dir: 1, fmt: (v) => v + " yr", tip: "life extension / design life." },
+  tenor: { name: "Debt tenor", dir: 1, fmt: (v) => v + " yr", tip: "longer repayment cheapens annual service and eases DSCR (bank appetite)." },
+  rd: { name: "Cost of debt (Rd)", dir: -1, fmt: (v) => fmt.pct(v, 2), tip: "debt margin + FX / swap cost." },
+  re: { name: "Cost of equity (Re)", dir: -1, fmt: (v) => fmt.pct(v, 2), tip: "investor return target — the frame's own threshold; loosening it widens APPROVE." },
+  tax: { name: "Tax rate", dir: -1, fmt: (v) => fmt.pct(v, 2), tip: "effective tax / incentive regime." },
+  minDscr: { name: "Minimum DSCR", dir: -1, fmt: (v) => fmt.mult(v, 2), tip: "lender's minimum — the hardest covenant to renegotiate." },
+  maxGearing: { name: "Max gearing", dir: 1, fmt: (v) => fmt.pct(v, 1), tip: "leverage ceiling — bites only when gearing-bound." },
+};
+const LEVER_NAMES = Object.fromEntries(Object.entries(LEVERS).map(([k, v]) => [k, v.name]));
+const ADVISOR_FREE = { re: 1, minDscr: 1, maxGearing: 1 }; // may sweep the full slider range
+
 const fmt = {
   num: (x, d = 0) => (typeof x === "number" && Number.isFinite(x) ? x.toLocaleString("en-US", { maximumFractionDigits: d }) : "—"),
   money: (x, d = 0) => (typeof x === "number" && Number.isFinite(x) ? "$" + x.toLocaleString("en-US", { maximumFractionDigits: d }) + "m" : "—"),
@@ -160,7 +181,7 @@ function renderKpis(m, ref) {
 function kv(rows, containerId) {
   const el = $(containerId);
   el.innerHTML = rows.map(([k, v, cls]) =>
-    `<div class="kv"><span class="k">${k}</span><span class="v ${cls || ""}">${v}</span></div>`
+    `<div class="kv${cls && cls.includes("key") ? " hlrow" : ""}"><span class="k">${k}</span><span class="v ${cls || ""}">${v}</span></div>`
   ).join("");
 }
 
@@ -176,10 +197,10 @@ function renderValuation(m) {
     ["CFADS P50", fmt.money(c.p50, 1)],
     ["CFADS P90", fmt.money(c.p90, 1)],
     ["PV of cash flows", fmt.money(v.pvCashFlows, 0)],
-    ["NPV", fmt.money(v.npv, 0), cls(v.npv, v.npv >= 0)],
-    ["Project IRR", fmt.pct(v.projectIrr), cls(v.projectIrr, v.projectIrr >= m.wacc.value)],
+    ["NPV", fmt.money(v.npv, 0), cls(v.npv, v.npv >= 0) + " key"],
+    ["Project IRR", fmt.pct(v.projectIrr), cls(v.projectIrr, v.projectIrr >= m.wacc.value) + " key"],
     ["WACC", fmt.pct(m.wacc.value)],
-    ["LCOE", fmt.num(v.lcoe, 1) + " USD/MWh", cls(v.lcoe, v.lcoe <= inp.price)],
+    ["LCOE", fmt.num(v.lcoe, 1) + " USD/MWh", cls(v.lcoe, v.lcoe <= inp.price) + " key"],
     ["PV of generation", fmt.energy(v.genPv)],
   ], "valuationGrid");
 }
@@ -252,7 +273,7 @@ function renderDebt(m) {
     ["Annuity factor @ Rd, tenor", fmt.num(d.afDebt, 2)],
     ["DSCR-supported debt", fmt.money(d.dscrSupportedDebt, 0)],
     ["Gearing cap (70% × CAPEX)", fmt.money(d.gearingCap, 0)],
-    ["DEBT (min of the two)", fmt.money(d.debt, 0), "hl"],
+    ["DEBT (min of the two)", fmt.money(d.debt, 0), "hl key"],
     ["EQUITY (top-up)", fmt.money(d.equity, 0)],
     ["Actual gearing", fmt.pct(d.actualGearing, 1)],
     ["Annual debt service", fmt.money(d.annualService, 1)],
@@ -281,10 +302,12 @@ function renderDebt(m) {
 /* ---------- 25-year table ---------- */
 function renderTable(m) {
   const tb = $("cashTable").querySelector("tbody");
-  tb.innerHTML = m.years.map((y) => {
+  tb.innerHTML = m.years.map((y, i) => {
+    const prev = m.years[i - 1];
+    const flash = (y.year === m.inputs.tenor) || (prev && prev.cumEquity < 0 && y.cumEquity >= 0);
     const cumCls = y.cumEquity < 0 ? "neg" : "pos";
     const dsc = y.dscr === null ? `<td class="na">n/a</td>` : `<td>${fmt.mult(y.dscr)}</td>`;
-    return `<tr class="body-row">
+    return `<tr class="body-row${flash ? " flash" : ""}">
       <td>${y.year}</td><td>${y.generation ? fmt.num(y.generation) : "—"}</td>
       <td>${y.revenue ? fmt.money(y.revenue, 0) : "—"}</td>
       <td>${y.opex ? fmt.money(y.opex, 0) : "—"}</td>
@@ -356,8 +379,8 @@ function renderBreakeven(m) {
 function renderCompare(m, ref) {
   const isBaseline = JSON.stringify(reference.inputs) === JSON.stringify(BASELINE);
   $("compareNote").textContent = isBaseline
-    ? "Reference = Formosa Blue baseline · move the sliders and watch the deltas repaint live."
-    : "Reference = your pinned scenario · click Reset to return to Formosa Blue.";
+    ? "Reference = baseline study case · move the sliders and watch the deltas repaint live."
+    : "Reference = your pinned scenario · click Reset to return to the baseline.";
 
   const money = (v) => fmt.money(v, 0);
   const dMoney = (v) => (v > 0 ? "+" : "") + fmt.num(v, 0) + "m";
@@ -397,6 +420,79 @@ function renderCompare(m, ref) {
   }).join("");
 }
 
+/* ---------- key points ---------- */
+function renderHighlights(m) {
+  const inp = m.inputs, v = m.valuation, d = m.debt;
+  const npv = v.npv, lcoe = v.lcoe, price = inp.price, irr = v.projectIrr, wacc = m.wacc.value;
+  const dscr = d.dscrP90, eqIrr = m.equityIrr, re = inp.re;
+  const items = [];
+
+  const ok = npv >= 0 && eqIrr >= re && dscr !== null && dscr >= inp.minDscr && lcoe <= price;
+  items.push({
+    k: "Verdict", val: npv < 0 ? "REJECT" : (ok ? "APPROVE" : "CAUTION"), tone: npv < 0 ? "bad" : (ok ? "good" : "warn"),
+    note: npv < 0 ? "Negative after discounting at WACC — structure or price must change." : (ok ? "Valuation, returns and covenants all clear." : "NPV positive, but a non-valuation gate (returns / covenant) fails."),
+  });
+
+  items.push({
+    k: "NPV", val: fmt.money(npv, 0), tone: npv >= 0 ? "good" : "bad",
+    note: `PV ${fmt.money(v.pvCashFlows, 0)} vs CAPEX ${fmt.money(inp.capex, 0)} @ WACC ${fmt.pct(wacc)}`,
+  });
+
+  items.push({
+    k: "Three ways · one verdict", val: `LCOE ${fmt.num(lcoe, 1)} ${lcoe <= price ? "≤" : ">"} price ${fmt.num(price, 0)} USD/MWh`,
+    tone: lcoe <= price ? "good" : "warn",
+    note: "LCOE > price ⟺ NPV < 0 ⟺ Project IRR < WACC — one fact, three spellings. If they disagree, re-check assumptions.",
+  });
+
+  items.push({
+    k: "Binding constraint", val: d.binding + "-bound", tone: "hl",
+    note: d.binding === "DSCR"
+      ? `Cash flow caps debt at ${fmt.money(d.debt, 0)}; ${fmt.money(Math.max(0, d.gearingCap - d.debt), 0)} of gearing headroom stays idle — talking up gearing won't help.`
+      : `Gearing caps debt at ${fmt.money(d.debt, 0)} even though cash flow could service more.`,
+  });
+
+  const headroom = dscr === null ? null : dscr - 1.20;
+  const covTone = dscr === null ? "neutral" : (headroom < 0 ? (dscr < 1.05 ? "bad" : "warn") : "good");
+  items.push({
+    k: "Covenant headroom", val: dscr === null ? "no debt" : `DSCR ${fmt.mult(dscr)} vs lock-up 1.20`,
+    tone: covTone,
+    note: dscr === null ? "" : dscr < 1.05
+      ? "Breach of 1.05 → acceleration + step-in live (the 抽銀根 scenario)."
+      : dscr < 1.20 ? "A fault year here triggers a dividend freeze." : `${fmt.mult(dscr - 1.20, 2)} of headroom above lock-up.`,
+  });
+
+  const depth = parseFloat($("selBurial").value) || 3;
+  items.push({
+    k: "Burial decision", val: depth.toFixed(1) + " m", tone: depth < 1.5 ? "warn" : "good",
+    note: depth < 1.5
+      ? "Shallow burial — insurer may exclude, lender won't fund. Deepen toward 3 m."
+      : "3 m keeps insurer + lender comfortable; the call is covenant-led, not NPV-led.",
+  });
+
+  items.push({
+    k: "Returns", val: "Equity IRR " + fmt.pct(eqIrr), tone: eqIrr >= re ? "good" : "bad",
+    note: eqIrr >= re ? `Clears the ${fmt.pct(re)} cost of equity.` : `Short by ${fmt.pct(Math.max(0, re - eqIrr), 1)} vs the ${fmt.pct(re)} investors require.`,
+  });
+
+  const income = $("tglIncome").checked;
+  const costLocked = ["tglIndex", "tglVessel", "tglOm"].every((id) => $(id).checked);
+  const someProt = ["tglIndex", "tglVessel", "tglOm"].some((id) => $(id).checked);
+  const exp = income && costLocked
+    ? ["Balanced", "good", "Income fixed and costs indexed/locked — sides matched."]
+    : income && someProt
+      ? ["Partly matched", "warn", "Income fixed, cost protection incomplete — residual asymmetry."]
+      : income
+        ? ["Asymmetric", "bad", "Income locked, cost open — returns capped, losses unlimited. The classic fixed-revenue/open-cost failure pattern."]
+        : ["Unhedged revenue", "warn", "Income floats to market while costs may be fixed — check PPA strategy."];
+  items.push({ k: "Exposure", val: exp[0], tone: exp[1], note: exp[2] });
+
+  $("keypoints").innerHTML = items.map((it) => `
+    <div class="hl-item tone-${it.tone}">
+      <div class="hl-meta"><span class="hl-kicker">${it.k}</span><span class="hl-value">${it.val}</span></div>
+      <p class="hl-note">${it.note}</p>
+    </div>`).join("");
+}
+
 /* ---------- risk ---------- */
 function renderRisk(m) {
   const inp = m.inputs, d = m.debt;
@@ -433,7 +529,7 @@ function renderRisk(m) {
   const v = $("asymVerdict");
   if (income && costLocked) { v.textContent = "Sides matched — income fixed and costs indexed/locked."; v.className = "asym-verdict ok"; }
   else if (income && someProtection) { v.textContent = "Income locked but only partial cost protection — residual asymmetry. Consider full indexing."; v.className = "asym-verdict warn"; }
-  else if (income) { v.textContent = "Income locked, cost open — asymmetric exposure: returns capped, losses open. The Formosa/森崴 failure pattern." ; v.className = "asym-verdict bad"; }
+  else if (income) { v.textContent = "Income locked, cost open — asymmetric exposure: returns capped, losses open. The classic fixed-revenue/open-cost failure pattern." ; v.className = "asym-verdict bad"; }
   else { v.textContent = "Income not locked — revenue floats to market while costs may be fixed. Reverse asymmetry — check PPA / CfD strategy."; v.className = "asym-verdict warn"; }
 
   // Stress
@@ -471,6 +567,99 @@ function renderRisk(m) {
     `</span></div>`);
 }
 
+/* ---------- advisor: reach the investable frame ---------- */
+function gates(m) {
+  const inp = m.inputs, v = m.valuation, d = m.debt;
+  return [
+    { name: "NPV ≥ 0", pass: v.npv >= 0, val: fmt.money(v.npv, 0) },
+    { name: "LCOE ≤ price", pass: v.lcoe <= inp.price, val: `${fmt.num(v.lcoe, 1)} vs ${fmt.num(inp.price, 0)} USD/MWh` },
+    { name: "Proj IRR ≥ WACC", pass: v.projectIrr >= m.wacc.value - 1e-9, val: `${fmt.pct(v.projectIrr)} vs ${fmt.pct(m.wacc.value)}` },
+    { name: "Equity IRR ≥ Re", pass: m.equityIrr >= inp.re - 1e-9, val: `${fmt.pct(m.equityIrr)} vs ${fmt.pct(inp.re)}` },
+    { name: "DSCR@P90 ≥ minDSCR", pass: d.dscrP90 !== null && d.dscrP90 >= inp.minDscr, val: d.dscrP90 === null ? "no debt" : `${fmt.mult(d.dscrP90)} vs ${fmt.mult(inp.minDscr)}` },
+  ];
+}
+
+function scanLevers(m) {
+  const full = [], partial = [];
+  for (const [lever, meta] of Object.entries(LEVERS)) {
+    if (LOCKED.has(lever)) continue;
+    const v0 = m.inputs[lever], cfg = SLIDERS[lever];
+    if (typeof v0 !== "number" || !cfg) continue;
+    const dir = meta.dir;
+    const free = ADVISOR_FREE[lever];
+    const vHi = dir > 0 ? (free ? cfg.max : Math.max(v0, Math.min(cfg.max, v0 * 1.30))) : v0;
+    const vLo = dir < 0 ? (free ? cfg.min : Math.min(v0, Math.max(cfg.min, v0 * 0.70))) : v0;
+    if (vHi <= vLo) continue;
+    const steps = 50, gateIdx = [];
+    let bestTie = 0, bestV = v0;
+    for (let s = 1; s <= steps; s++) {
+      const t = s / steps;
+      const v = vLo + (vHi - vLo) * t;
+      const g = gates(MODEL.run({ inputs: { ...m.inputs, [lever]: v }, skipRisk: true }));
+      for (let i = 0; i < g.length; i++) if (g[i].pass && gateIdx[i] === undefined) gateIdx[i] = t;
+      if (gateIdx.filter((x) => x !== undefined).length === g.length) {
+        const bIdx = gateIdx.indexOf(Math.max(...gateIdx));
+        full.push({ lever, dir, v0, newV: v, pct: (Math.abs(v - v0) / v0) * 100, binding: g[bIdx].name });
+        break;
+      }
+      const cover = gateIdx.filter((x) => x !== undefined).length;
+      if (cover > bestTie) { bestTie = cover; bestV = v; }
+    }
+    if (gateIdx.filter((x) => x !== undefined).length < gates(m).length && bestTie > 0) {
+      partial.push({ lever, dir, v0, newV: bestV, tie: bestTie, pct: (Math.abs(bestV - v0) / v0) * 100 });
+    }
+  }
+  full.sort((a, b) => a.pct - b.pct);
+  partial.sort((a, b) => (b.tie - a.tie) || (a.pct - b.pct));
+  return { full, partial };
+}
+
+function renderAdvisor(m) {
+  const g = gates(m), allPass = g.every((x) => x.pass);
+  const { full, partial } = scanLevers(m);
+  const locks = [...LOCKED].map((k) => LEVER_NAMES[k]).join(" · ");
+
+  $("advLockNote").textContent = locks
+    ? `Fixed by you (locked 🔒) → taken off the menu: ${locks}. Cost of equity is open, so it is a candidate below.`
+    : "Nothing locked — every input is in play. Click 🔒 next to any input to fix it and remove it as a lever.";
+
+  $("advGates").innerHTML = g.map((x) => `
+    <div class="gate-chip ${x.pass ? "pass" : "fail"}">
+      <span class="gate-name">${x.name}</span>
+      <span class="gate-val">${x.val}</span>
+    </div>`).join("");
+
+  const list = $("advList"), note = $("advNote");
+  if (allPass) {
+    list.innerHTML = `<div class="adv-ok">Frame holds — every gate passes on current numbers. Nothing pushed; watch the headroom, not the verdict. Reconfirm you didn't nudge an input to make it true.</div>`;
+    note.textContent = "";
+  } else if (full.length) {
+    list.innerHTML = `<p class="adv-title">Easiest way in — single-lever fixes, smallest move first</p>` +
+      full.slice(0, 6).map((s) => `
+        <div class="adv-item">
+          <span class="adv-lever">${LEVER_NAMES[s.lever]} ${s.dir > 0 ? "↗" : "↘"}</span>
+          <code class="adv-move">${LEVERS[s.lever].fmt(s.v0)} → ${LEVERS[s.lever].fmt(s.newV)} <em>${s.pct.toFixed(1)}% ${s.dir > 0 ? "up" : "down"}</em></code>
+          <span class="adv-gate">unlocks · ${s.binding}</span>
+          <span class="adv-tip">${LEVERS[s.lever].tip}</span>
+        </div>`).join("");
+    note.textContent = "Ranked by how little you have to move. The top one or two are usually the negotiable ones — drag the slider to confirm it live.";
+  } else {
+    const a = partial[0], b = partial[1] || a;
+    list.innerHTML = `<p class="adv-title">No single lever closes every gate alone — build a package</p>
+      ${partial.length ? `<div class="adv-item combo">
+        <span class="adv-lever">${LEVER_NAMES[a.lever]} ${a.dir > 0 ? "↗" : "↘"}</span>
+        <code class="adv-move">→ ${LEVERS[a.lever].fmt(a.newV)}</code>
+        <span class="adv-gate">closes ${a.tie}/5 gates</span>
+        <span style="grid-column:1/-1;font-size:11px;color:var(--ink-3)">+</span>
+        <span class="adv-lever">${LEVER_NAMES[b.lever]} ${b.dir > 0 ? "↗" : "↘"}</span>
+        <code class="adv-move">→ ${LEVERS[b.lever].fmt(b.newV)}</code>
+        <span class="adv-gate">closes ${b.tie}/5 gates</span>
+        <span class="adv-tip">Move both on the sliders — the package clears the gates the singles couldn't.</span>
+      </div>` : `<div class="adv-ok" style="background:var(--amber-bg,#fdf3df);border-color:#f3d9a4">Nothing left to pull — unlock an input, or revise a hard constraint, to give the advisor room.</div>`}`;
+    note.textContent = partial.length ? "These two together are the achievable framing; lock what's truly fixed and let the sliders reconcile the rest." : "";
+  }
+}
+
 /* ---------- master render ---------- */
 let lastInputs = null;
 function render() {
@@ -488,6 +677,8 @@ function render() {
   renderSensitivity(m);
   renderBreakeven(m);
   renderCompare(m, ref);
+  renderHighlights(m);
+  renderAdvisor(m);
   renderRisk(m);
 }
 
@@ -513,6 +704,40 @@ function injectSliders() {
   }
 }
 
+function applyLock(k) {
+  const num = $(INPUT_IDS[k]);
+  if (!num) return;
+  const label = num.closest("label"), lock = label.querySelector(".lock");
+  const slider = num.nextElementSibling && num.nextElementSibling.classList.contains("slider") ? num.nextElementSibling : label.querySelector(".slider");
+  const locked = LOCKED.has(k);
+  num.disabled = locked;
+  if (slider) slider.disabled = locked;
+  label.classList.toggle("locked", locked);
+  lock.textContent = locked ? "🔒" : "🔓";
+  lock.title = locked
+    ? `Fixed (preference) — the advisor will not move ${LEVER_NAMES[k]}`
+    : `Movable — ${LEVER_NAMES[k]} is a candidate lever for the advisor`;
+}
+
+function injectLocks() {
+  for (const [k, id] of Object.entries(INPUT_IDS)) {
+    const num = $(id);
+    if (!num) continue;
+    const label = num.closest("label");
+    if (label.querySelector(".lctrl")) continue;
+    const ctrl = document.createElement("span");
+    ctrl.className = "lctrl";
+    const lock = document.createElement("button");
+    lock.type = "button";
+    lock.className = "lock";
+    lock.dataset.lever = k;
+    ctrl.appendChild(lock);
+    ctrl.appendChild(num);
+    label.insertBefore(ctrl, label.querySelector(".slider"));
+  }
+  for (const k of Object.keys(INPUT_IDS)) applyLock(k);
+}
+
 function bind() {
   for (const id of Object.values(INPUT_IDS)) {
     const num = $(id);
@@ -530,6 +755,14 @@ function bind() {
     el.addEventListener("input", render);
     el.addEventListener("change", render);
   });
+  document.querySelectorAll(".lock").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const k = btn.dataset.lever;
+      if (LOCKED.has(k)) LOCKED.delete(k); else LOCKED.add(k);
+      applyLock(k);
+      render();
+    });
+  });
   $("btnReset").addEventListener("click", () => { setInputs(BASELINE); render(); });
   $("btnPreset").addEventListener("click", () => { setInputs(BASELINE); render(); });
   $("btnPin").addEventListener("click", () => { reference.inputs = { ...readInputs() }; render(); });
@@ -542,6 +775,7 @@ function bind() {
 document.addEventListener("DOMContentLoaded", () => {
   setInputs(BASELINE);
   injectSliders();
+  injectLocks();
   bind();
   render();
 });
