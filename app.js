@@ -420,77 +420,62 @@ function renderCompare(m, ref) {
   }).join("");
 }
 
-/* ---------- key points ---------- */
+/* ---------- what to change right now ---------- */
+function mustChange(m) {
+  const g = gates(m);
+  const failing = g.map((x, i) => ({ ...x, idx: i })).filter((x) => !x.pass);
+  if (!failing.length) return { items: [], unresolvable: [] };
+
+  const per = [];
+  for (const fg of failing) {
+    let best = null;
+    for (const [lever, meta] of Object.entries(LEVERS)) {
+      if (LOCKED.has(lever)) continue;
+      const v0 = m.inputs[lever], cfg = SLIDERS[lever];
+      if (typeof v0 !== "number" || !cfg) continue;
+      const dir = meta.dir, free = ADVISOR_FREE[lever];
+      const vHi = dir > 0 ? (free ? cfg.max : Math.max(v0, Math.min(cfg.max, v0 * 1.30))) : v0;
+      const vLo = dir < 0 ? (free ? cfg.min : Math.min(v0, Math.max(cfg.min, v0 * 0.70))) : v0;
+      if (vHi <= vLo) continue;
+      for (let s = 1; s <= 60; s++) {
+        const t = s / 60;
+        const v = dir > 0 ? v0 + (vHi - v0) * t : v0 - (v0 - vLo) * t;
+        const mm = MODEL.run({ inputs: { ...m.inputs, [lever]: v }, skipRisk: true });
+        if (gates(mm)[fg.idx].pass) {
+          const pct = (Math.abs(v - v0) / v0) * 100;
+          if (!best || pct < best.pct) best = { lever, newV: v, pct };
+          break;
+        }
+      }
+    }
+    if (best) per.push({ gate: fg, ...best });
+  }
+  per.sort((a, b) => a.pct - b.pct);
+  const unresolvable = failing.filter((f) => !per.some((p) => p.gate.idx === f.idx)).map((f) => f.short);
+  return { items: per, unresolvable };
+}
+
 function renderHighlights(m) {
-  const inp = m.inputs, v = m.valuation, d = m.debt;
-  const npv = v.npv, lcoe = v.lcoe, price = inp.price, irr = v.projectIrr, wacc = m.wacc.value;
-  const dscr = d.dscrP90, eqIrr = m.equityIrr, re = inp.re;
-  const items = [];
+  const res = mustChange(m);
+  const el = $("keypoints"), note = $("keypointsNote");
 
-  const ok = npv >= 0 && eqIrr >= re && dscr !== null && dscr >= inp.minDscr && lcoe <= price;
-  items.push({
-    k: "Verdict", val: npv < 0 ? "REJECT" : (ok ? "APPROVE" : "CAUTION"), tone: npv < 0 ? "bad" : (ok ? "good" : "warn"),
-    note: npv < 0 ? "Negative after discounting at WACC — structure or price must change." : (ok ? "Valuation, returns and covenants all clear." : "NPV positive, but a non-valuation gate (returns / covenant) fails."),
-  });
+  if (!res.items.length && !res.unresolvable.length) {
+    el.innerHTML = `<div class="mc-ok">Every gate already passes — no variable has to move.</div>`;
+    note.textContent = "";
+    return;
+  }
 
-  items.push({
-    k: "NPV", val: fmt.money(npv, 0), tone: npv >= 0 ? "good" : "bad",
-    note: `PV ${fmt.money(v.pvCashFlows, 0)} vs CAPEX ${fmt.money(inp.capex, 0)} @ WACC ${fmt.pct(wacc)}`,
-  });
-
-  items.push({
-    k: "Three ways · one verdict", val: `LCOE ${fmt.num(lcoe, 1)} ${lcoe <= price ? "≤" : ">"} price ${fmt.num(price, 0)} USD/MWh`,
-    tone: lcoe <= price ? "good" : "warn",
-    note: "LCOE > price ⟺ NPV < 0 ⟺ Project IRR < WACC — one fact, three spellings. If they disagree, re-check assumptions.",
-  });
-
-  items.push({
-    k: "Binding constraint", val: d.binding + "-bound", tone: "hl",
-    note: d.binding === "DSCR"
-      ? `Cash flow caps debt at ${fmt.money(d.debt, 0)}; ${fmt.money(Math.max(0, d.gearingCap - d.debt), 0)} of gearing headroom stays idle — talking up gearing won't help.`
-      : `Gearing caps debt at ${fmt.money(d.debt, 0)} even though cash flow could service more.`,
-  });
-
-  const headroom = dscr === null ? null : dscr - 1.20;
-  const covTone = dscr === null ? "neutral" : (headroom < 0 ? (dscr < 1.05 ? "bad" : "warn") : "good");
-  items.push({
-    k: "Covenant headroom", val: dscr === null ? "no debt" : `DSCR ${fmt.mult(dscr)} vs lock-up 1.20`,
-    tone: covTone,
-    note: dscr === null ? "" : dscr < 1.05
-      ? "Breach of 1.05 → acceleration + step-in live (the 抽銀根 scenario)."
-      : dscr < 1.20 ? "A fault year here triggers a dividend freeze." : `${fmt.mult(dscr - 1.20, 2)} of headroom above lock-up.`,
-  });
-
-  const depth = parseFloat($("selBurial").value) || 3;
-  items.push({
-    k: "Burial decision", val: depth.toFixed(1) + " m", tone: depth < 1.5 ? "warn" : "good",
-    note: depth < 1.5
-      ? "Shallow burial — insurer may exclude, lender won't fund. Deepen toward 3 m."
-      : "3 m keeps insurer + lender comfortable; the call is covenant-led, not NPV-led.",
-  });
-
-  items.push({
-    k: "Returns", val: "Equity IRR " + fmt.pct(eqIrr), tone: eqIrr >= re ? "good" : "bad",
-    note: eqIrr >= re ? `Clears the ${fmt.pct(re)} cost of equity.` : `Short by ${fmt.pct(Math.max(0, re - eqIrr), 1)} vs the ${fmt.pct(re)} investors require.`,
-  });
-
-  const income = $("tglIncome").checked;
-  const costLocked = ["tglIndex", "tglVessel", "tglOm"].every((id) => $(id).checked);
-  const someProt = ["tglIndex", "tglVessel", "tglOm"].some((id) => $(id).checked);
-  const exp = income && costLocked
-    ? ["Balanced", "good", "Income fixed and costs indexed/locked — sides matched."]
-    : income && someProt
-      ? ["Partly matched", "warn", "Income fixed, cost protection incomplete — residual asymmetry."]
-      : income
-        ? ["Asymmetric", "bad", "Income locked, cost open — returns capped, losses unlimited. The classic fixed-revenue/open-cost failure pattern."]
-        : ["Unhedged revenue", "warn", "Income floats to market while costs may be fixed — check PPA strategy."];
-  items.push({ k: "Exposure", val: exp[0], tone: exp[1], note: exp[2] });
-
-  $("keypoints").innerHTML = items.map((it) => `
-    <div class="hl-item tone-${it.tone}">
-      <div class="hl-meta"><span class="hl-kicker">${it.k}</span><span class="hl-value">${it.val}</span></div>
-      <p class="hl-note">${it.note}</p>
+  el.innerHTML = res.items.slice(0, 6).map((s) => `
+    <div class="mc-item">
+      <span class="mc-gate-tag">fixes ${s.gate.short}</span>
+      <span class="mc-move"><b>${LEVER_NAMES[s.lever]}</b> ${LEVERS[s.lever].fmt(s.newV)}</span>
+      <span class="mc-pct">${LEVERS[s.lever].dir > 0 ? "↗" : "↘"} ${s.pct.toFixed(1)}%</span>
     </div>`).join("");
+
+  const rows = [...new Set(res.items.map((s) => s.lever))].map((k) => LEVER_NAMES[k]).join(", ");
+  note.textContent = res.unresolvable.length
+    ? `${res.unresolvable.join(", ")} has no single-lever fix in a believable range — see the Advisor package. Cheapest moves: ${rows || "—"}.`
+    : `Cheapest move per failing gate · ${rows} · locked 🔒 inputs never appear · full ranking in the Advisor.`;
 }
 
 /* ---------- risk ---------- */
@@ -571,11 +556,11 @@ function renderRisk(m) {
 function gates(m) {
   const inp = m.inputs, v = m.valuation, d = m.debt;
   return [
-    { name: "NPV ≥ 0", pass: v.npv >= 0, val: fmt.money(v.npv, 0) },
-    { name: "LCOE ≤ price", pass: v.lcoe <= inp.price, val: `${fmt.num(v.lcoe, 1)} vs ${fmt.num(inp.price, 0)} USD/MWh` },
-    { name: "Proj IRR ≥ WACC", pass: v.projectIrr >= m.wacc.value - 1e-9, val: `${fmt.pct(v.projectIrr)} vs ${fmt.pct(m.wacc.value)}` },
-    { name: "Equity IRR ≥ Re", pass: m.equityIrr >= inp.re - 1e-9, val: `${fmt.pct(m.equityIrr)} vs ${fmt.pct(inp.re)}` },
-    { name: "DSCR@P90 ≥ minDSCR", pass: d.dscrP90 !== null && d.dscrP90 >= inp.minDscr, val: d.dscrP90 === null ? "no debt" : `${fmt.mult(d.dscrP90)} vs ${fmt.mult(inp.minDscr)}` },
+    { name: "NPV ≥ 0", short: "NPV", pass: v.npv >= 0, val: fmt.money(v.npv, 0) },
+    { name: "LCOE ≤ price", short: "LCOE", pass: v.lcoe <= inp.price, val: `${fmt.num(v.lcoe, 1)} vs ${fmt.num(inp.price, 0)} USD/MWh` },
+    { name: "Proj IRR ≥ WACC", short: "IRR", pass: v.projectIrr >= m.wacc.value - 1e-9, val: `${fmt.pct(v.projectIrr)} vs ${fmt.pct(m.wacc.value)}` },
+    { name: "Equity IRR ≥ Re", short: "Eq IRR", pass: m.equityIrr >= inp.re - 1e-9, val: `${fmt.pct(m.equityIrr)} vs ${fmt.pct(inp.re)}` },
+    { name: "DSCR@P90 ≥ minDSCR", short: "DSCR", pass: d.dscrP90 !== null && d.dscrP90 >= inp.minDscr, val: d.dscrP90 === null ? "no debt" : `${fmt.mult(d.dscrP90)} vs ${fmt.mult(inp.minDscr)}` },
   ];
 }
 
@@ -594,7 +579,7 @@ function scanLevers(m) {
     let bestTie = 0, bestV = v0;
     for (let s = 1; s <= steps; s++) {
       const t = s / steps;
-      const v = vLo + (vHi - vLo) * t;
+      const v = dir > 0 ? v0 + (vHi - v0) * t : v0 - (v0 - vLo) * t;
       const g = gates(MODEL.run({ inputs: { ...m.inputs, [lever]: v }, skipRisk: true }));
       for (let i = 0; i < g.length; i++) if (g[i].pass && gateIdx[i] === undefined) gateIdx[i] = t;
       if (gateIdx.filter((x) => x !== undefined).length === g.length) {
@@ -660,7 +645,142 @@ function renderAdvisor(m) {
   }
 }
 
-/* ---------- master render ---------- */
+/* ---------- scenarios & report ---------- */
+const SCEN_KEY = "wfpr_scenarios_v1";
+function loadScenarios() {
+  try { return JSON.parse(localStorage.getItem(SCEN_KEY) || "[]"); }
+  catch (e) { return []; }
+}
+function persistScenarios() {
+  try { localStorage.setItem(SCEN_KEY, JSON.stringify(scenarios.map((s) => ({ name: s.name, inputs: s.inputs })))); }
+  catch (e) { /* private mode — keep in memory */ }
+}
+let scenarios = loadScenarios();
+
+const OBJ_METRICS = {
+  npv: { key: "npv", dir: 1, label: "NPV", fmt: (v) => fmt.money(v, 0) },
+  eqIrr: { key: "eqIrr", dir: 1, label: "Equity IRR", fmt: (v) => fmt.pct(v, 2) },
+  irr: { key: "irr", dir: 1, label: "Project IRR", fmt: (v) => fmt.pct(v, 2) },
+  dscr: { key: "dscr", dir: 1, label: "DSCR @ P90", fmt: (v) => fmt.mult(v, 2) },
+  lcoe: { key: "lcoe", dir: -1, label: "LCOE", fmt: (v) => fmt.num(v, 1) + " USD/MWh" },
+};
+
+function scenarioRows() {
+  const curInputs = readInputs();
+  const rows = [];
+  rows.push({ name: "Current (working)", inputs: curInputs, isCurrent: true });
+  scenarios.forEach((s) => rows.push({ name: s.name, inputs: s.inputs, isScen: true }));
+  return rows.map((r) => {
+    const m = MODEL.run({ inputs: r.inputs });
+    const d = m.debt, v = m.valuation;
+    return {
+      ...r, m,
+      npv: v.npv, irr: v.projectIrr, eqIrr: m.equityIrr, dscr: d.dscrP90,
+      lcoe: v.lcoe, debt: d.debt, capex: r.inputs.capex, price: r.inputs.price,
+    };
+  });
+}
+function scenarioVerdict(m) {
+  const npv = m.valuation.npv, dscr = m.debt.dscrP90;
+  const ok = npv >= 0 && dscr !== null && dscr >= m.inputs.minDscr &&
+    m.equityIrr >= m.inputs.re && m.valuation.lcoe <= m.inputs.price;
+  return npv < 0 ? { t: "REJECT", c: "bad" } : ok ? { t: "APPROVE", c: "good" } : { t: "CAUTION", c: "warn" };
+}
+
+function renderScenarios() {
+  const rows = scenarioRows();
+  const cols = ["capex", "price", "npv", "irr", "eqIrr", "dscr", "lcoe", "debt"];
+  const dirs = { lcoe: -1 };
+  const best = {}, worst = {};
+  cols.forEach((c) => {
+    const vals = rows.map((r) => r[c]).filter((x) => x !== null && Number.isFinite(x));
+    const d = dirs[c] || 1;
+    best[c] = Math.max(...vals) * d, worst[c] = Math.min(...vals) * d;
+  });
+
+  const obj = OBJ_METRICS[$("reportObj").value];
+  const winner = obj
+    ? rows.slice().sort((a, b) => obj.dir * ((b[obj.key] - a[obj.key]) || 0))[0]
+    : null;
+
+  $("reportBest").innerHTML = winner
+    ? `<b>Best by ${obj.label}</b> → “${escapeHtml(winner.name)}”: ${obj.fmt(winner[obj.key])}`
+    : "";
+
+  const tb = $("scenTable").querySelector("tbody");
+  tb.innerHTML = rows.map((r, i) => {
+    const vd = scenarioVerdict(r.m);
+    const star = winner && i === rows.indexOf(winner) ? "<sup>★</sup>" : "";
+    const del = r.isScen ? `<button class="scen-del" data-idx="${i - 1}" title="Remove scenario">✕</button>` : "";
+    const cell = (c) => {
+      let cls = "";
+      const val = r[c];
+      if (val === null || val === undefined) return `<td class="na">—</td>`;
+      if (Number.isFinite(val)) {
+        const d = dirs[c] || 1;
+        if (val * d === best[c]) cls = " cell-best";
+        else if (val * d === worst[c]) cls = " cell-worst";
+      }
+      if (c === "capex") return `<td class="nums${cls}">${fmt.num(val, 0)}</td>`;
+      if (c === "price") return `<td class="nums${cls}">${val}</td>`;
+      if (c === "npv" || c === "debt") return `<td class="nums${cls}">${fmt.money(val, 0)}</td>`;
+      if (c === "irr" || c === "eqIrr") return `<td class="nums${cls}">${fmt.pct(val, 2)}</td>`;
+      if (c === "dscr") return `<td class="nums${cls}">${fmt.mult(val, 2)}</td>`;
+      if (c === "lcoe") return `<td class="nums${cls}">${fmt.num(val, 1)}</td>`;
+      return `<td>—</td>`;
+    };
+    $("scenEmpty").textContent = rows.length >= 3
+      ? "Best per column is green, worst is red. ★ = winner by your objective. Scenarios persist in this browser."
+      : "Save more scenarios — the report rows and best-per-column update automatically.";
+    return `<tr class="${winner && i === rows.indexOf(winner) ? "row-best" : ""}">
+      <td class="metric">${del}${escapeHtml(r.name)}${star}</td>
+      ${cols.map(cell).join("")}
+      <td><span class="badge ${vd.c}">${vd.t}</span></td>
+    </tr>`;
+  }).join("");
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+}
+
+function exportReport() {
+  const rows = scenarioRows();
+  const lines = [];
+  const esc = (s) => `"${String(s).replace(/"/g, '""')}"`;
+  lines.push("WIND FARM INVESTMENT — SCENARIO COMPARISON REPORT");
+  lines.push("Generated," + new Date().toLocaleString());
+  const obj = OBJ_METRICS[$("reportObj").value];
+  if (obj) {
+    const ranked = rows.slice().sort((a, b) => obj.dir * ((b[obj.key] - a[obj.key]) || 0));
+    lines.push("Best by, " + obj.label + "," + esc(ranked[0].name) + "," + obj.fmt(ranked[0][obj.key]));
+  }
+  lines.push("");
+  lines.push("SECTION 1 — COMPARISON");
+  lines.push(esc("Scenario") + "," + esc("CAPEX $m") + "," + esc("Price $/MWh") + "," + esc("NPV $m") + "," + esc("Proj IRR") + "," + esc("Equity IRR") + "," + esc("DSCR@P90") + "," + esc("LCOE") + "," + esc("Debt $m") + "," + esc("Verdict"));
+  rows.forEach((r) => {
+    const vd = scenarioVerdict(r.m);
+    lines.push(esc(r.name) + "," + r.capex + "," + r.price + "," + r.npv.toFixed(2) + "," + (r.irr * 100).toFixed(2) + "%," + (r.eqIrr * 100).toFixed(2) + "%," + (r.dscr === null ? "n/a" : r.dscr.toFixed(3)) + "," + r.lcoe.toFixed(2) + "," + r.debt.toFixed(2) + "," + vd.t);
+  });
+  lines.push("");
+  lines.push("SECTION 2 — PER-SCENARIO DIAGNOSTIC");
+  rows.forEach((r) => {
+    lines.push("");
+    lines.push("SCENARIO," + esc(r.name));
+    lines.push("Inputs," + esc(Object.entries(r.inputs).filter(([k]) => k !== "hours" && k !== "life" && k !== "rd").map(([k, v]) => `${k}=${v}`).join(" ")));
+    gates(r.m).forEach((g) => lines.push("Gate," + esc(g.name) + "," + (g.pass ? "PASS" : "FAIL") + "," + esc(g.val)));
+    const mc = mustChange(r.m);
+    mc.items.forEach((s) => lines.push("Fix," + esc(LEVER_NAMES[s.lever]) + " → " + esc(LEVERS[s.lever].fmt(s.newV)) + "," + esc(s.gate.name) + ", " + s.pct.toFixed(1) + "% " + (LEVERS[s.lever].dir > 0 ? "up" : "down")));
+    if (!mc.items.length && !mc.unresolvable.length) lines.push("Fix,all gates pass,no move needed");
+    if (mc.unresolvable.length) lines.push("Fix,no single-lever fix for," + mc.unresolvable.join(" / "));
+  });
+  const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "windfarm-scenario-report.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 let lastInputs = null;
 function render() {
   const inputs = readInputs();
@@ -680,6 +800,7 @@ function render() {
   renderHighlights(m);
   renderAdvisor(m);
   renderRisk(m);
+  renderScenarios();
 }
 
 function injectSliders() {
@@ -769,6 +890,22 @@ function bind() {
   $("btnRefReset").addEventListener("click", () => { reference.inputs = { ...BASELINE }; render(); });
   $("btnCsv").addEventListener("click", () => {
     if (lastInputs) exportCsv(MODEL.run({ inputs: lastInputs }));
+  });
+  $("btnSaveScen").addEventListener("click", () => {
+    const name = ($("scenName").value || "").trim() || `Scenario ${scenarios.length + 1}`;
+    scenarios.push({ name, inputs: { ...readInputs() } });
+    persistScenarios();
+    $("scenName").value = "";
+    render();
+  });
+  $("btnExportReport").addEventListener("click", exportReport);
+  $("reportObj").addEventListener("change", render);
+  $("scenTable").querySelector("tbody").addEventListener("click", (ev) => {
+    const btn = ev.target.closest(".scen-del");
+    if (!btn) return;
+    scenarios.splice(parseInt(btn.dataset.idx, 10), 1);
+    persistScenarios();
+    render();
   });
 }
 

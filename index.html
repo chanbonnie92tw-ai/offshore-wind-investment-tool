@@ -107,10 +107,11 @@
 
     <section class="card hl-card">
       <div class="card-head">
-        <h2 class="card-title">Key points — what matters right now</h2>
-        <span class="chip neutral hl-chip">auto-derived · live</span>
+        <h2 class="card-title">What to change right now</h2>
+        <span class="chip neutral hl-chip">locks respected · smallest move per gate</span>
       </div>
       <div class="keypoints" id="keypoints"></div>
+      <p class="card-note" id="keypointsNote" style="margin-bottom:0"></p>
     </section>
 
     <section class="card">
@@ -259,6 +260,41 @@
           <p class="card-note">Drag to sweep 1 m → 3 m. Anchors: 1 m = 2.0% / $0.30m pa loss · 3 m = 0.5% / $0.075m pa · +$15m CAPEX. NPV says surface wins; bankability + covenant breach argue for depth.</p>
         </div>
       </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">6 · Scenario comparison &amp; report</h2>
+        <div class="card-actions">
+          <input id="scenName" class="scen-name" placeholder="Scenario name…" />
+          <button id="btnSaveScen" class="btn">Save current</button>
+          <button id="btnExportReport" class="btn btn-ghost">Export report</button>
+        </div>
+      </div>
+      <div class="report-rank">
+        <label for="reportObj">Best in terms of</label>
+        <select id="reportObj">
+          <option value="npv">NPV — higher is better</option>
+          <option value="eqIrr">Equity IRR — higher is better</option>
+          <option value="irr">Project IRR — higher is better</option>
+          <option value="dscr">DSCR @ P90 — higher is better</option>
+          <option value="lcoe">LCOE — lower is better</option>
+          <option value="risk">Verdict</option>
+        </select>
+        <span class="report-best" id="reportBest"></span>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table" id="scenTable">
+          <thead>
+            <tr>
+              <th>Scenario</th><th>CAPEX ($m)</th><th>Price ($/MWh)</th><th>NPV ($m)</th><th>Proj IRR</th>
+              <th>Equity IRR</th><th>DSCR @ P90</th><th>LCOE</th><th>Debt ($m)</th><th>Verdict</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="card-note" id="scenEmpty">Save 2+ scenarios to compare. Best value per column is highlighted, ★ marks the winner by your objective. Export report gives the full comparison + per-scenario diagnostics.</p>
     </section>
 
     <footer class="foot">

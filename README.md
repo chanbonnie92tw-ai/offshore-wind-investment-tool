@@ -19,6 +19,7 @@ anything; the whole dashboard recomputes instantly.
 | 4 | Sensitivity | NPV heatmap vs price × CAPEX, breakeven levers, CSV export |
 | 5 | Risk & covenant | DSCR lock-up / default headroom, asymmetric-exposure check, stress tests, burial-depth sweep |
 | 6 | Advisor | Investable-frame gate strip + smallest single-lever fixes — respects your locked inputs (🔒) |
+| 7 | Scenarios & report | Save scenarios, compare side-by-side with best/worst highlighted, rank by objective (NPV / IRR / DSCR / LCOE), export a full CSV report with per-scenario diagnostics |
 
 ## How it works
 
