@@ -98,17 +98,32 @@
       <div class="verdict-left">
         <p class="eyebrow">Investment verdict</p>
         <h2 id="verdictTitle">—</h2>
-        <p id="verdictReason" class="verdict-reason">—</p>
+        <ul id="verdictReason" class="verdict-reason"></ul>
       </div>
       <div class="verdict-right">
         <div class="verdict-badge" id="verdictBadge">—</div>
       </div>
     </section>
 
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">0 · Compare vs Reference</h2>
+        <div class="card-actions">
+          <button id="btnPin" class="btn">Pin current as reference</button>
+          <button id="btnRefReset" class="btn btn-plain">Reset to Formosa Blue</button>
+        </div>
+      </div>
+      <p class="card-note" id="compareNote">Reference = Formosa Blue baseline · move the sliders and watch the deltas repaint live.</p>
+      <table class="cmp-table" id="cmpTable">
+        <thead><tr><th>Metric</th><th>Reference</th><th>Current</th><th>Δ</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
     <section class="kpis" id="kpiRow">
       <div class="kpi card"><p class="kpi-label">NPV</p><p class="kpi-value" id="kpiNpv">—</p><p class="kpi-sub" id="kpiNpvSub">—</p></div>
       <div class="kpi card"><p class="kpi-label">Project IRR</p><p class="kpi-value" id="kpiIrr">—</p><p class="kpi-sub" id="kpiIrrSub">vs WACC</p></div>
-      <div class="kpi card"><p class="kpi-label">WACC</p><p class="kpi-value" id="kpiWacc">—</p><p class="kpi-sub">Discount rate</p></div>
+      <div class="kpi card"><p class="kpi-label">WACC</p><p class="kpi-value" id="kpiWacc">—</p><p class="kpi-sub" id="kpiWaccSub">Discount rate</p></div>
       <div class="kpi card"><p class="kpi-label">LCOE</p><p class="kpi-value" id="kpiLcoe">—</p><p class="kpi-sub" id="kpiLcoeSub">vs price</p></div>
       <div class="kpi card"><p class="kpi-label">Debt size</p><p class="kpi-value" id="kpiDebt">—</p><p class="kpi-sub" id="kpiDebtSub">Equity</p></div>
       <div class="kpi card"><p class="kpi-label">DSCR @ P90</p><p class="kpi-value" id="kpiDscrP90">—</p><p class="kpi-sub" id="kpiDscrSub">lock-up 1.20 · default 1.05</p></div>
@@ -216,13 +231,13 @@
           <h4>Burial-depth decision (CBRA input)</h4>
           <div class="select-row">
             <label>Burial depth</label>
-            <select id="selBurial">
-              <option value="1">1.0 m (baseline)</option>
-              <option value="3" selected>3.0 m</option>
-            </select>
+            <div class="burial-dl">
+              <input type="range" id="selBurial" class="slider" min="0.5" max="5" step="0.5" value="3" />
+              <output id="burialDepthVal" for="selBurial">3.0 m</output>
+            </div>
           </div>
           <div class="kv-grid mini" id="burialGrid"></div>
-          <p class="card-note">Decide on bankability + covenant breach, not just NPV. A shallow fault can trip DSCR lock-up.</p>
+          <p class="card-note">Drag to sweep 1 m → 3 m. Anchors: 1 m = 2.0% / $0.30m pa loss · 3 m = 0.5% / $0.075m pa · +$15m CAPEX. NPV says surface wins; bankability + covenant breach argue for depth.</p>
         </div>
       </div>
     </section>

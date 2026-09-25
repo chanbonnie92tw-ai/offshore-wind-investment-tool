@@ -12,11 +12,12 @@ anything; the whole dashboard recomputes instantly.
 
 | # | Module | What it answers |
 |---|--------|-----------------|
+| 0 | Compare vs reference | Live delta table vs a baseline (Formosa Blue) or a pinned scenario |
 | 1 | Valuation | NPV, Project IRR, WACC, LCOE — the "three ways of saying the same thing" |
 | 2 | Debt sizing | DSCR-supported vs gearing cap → `MIN()` → which constraint is **binding** |
 | 3 | 25-yr cash flow | Annual table, DSCR term structure, cumulative equity curve, Equity IRR |
 | 4 | Sensitivity | NPV heatmap vs price × CAPEX, breakeven levers, CSV export |
-| 5 | Risk & covenant | DSCR lock-up / default headroom, asymmetric-exposure check, stress tests, burial-depth decision |
+| 5 | Risk & covenant | DSCR lock-up / default headroom, asymmetric-exposure check, stress tests, burial-depth sweep |
 
 ## How it works
 
